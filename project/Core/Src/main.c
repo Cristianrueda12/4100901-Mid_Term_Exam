@@ -84,13 +84,12 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 		        	    counter_left=1;
 		    } else if(left_pressed==2){
 	        	HAL_UART_Transmit(&huart2, (uint8_t *)"left_second_active\r\n",20,10);
-	        	counter_left2=1;
+
 
 	        		        	left_pressed =0;
 
 
 		    }
-
 
 
 		}
@@ -144,7 +143,8 @@ int main(void)
 
 	  		  for(uint8_t i = 0; i<6 ; i++){
 	  			  HAL_GPIO_TogglePin(LED_3_GPIO_Port,LED_3_Pin);
-	  			  HAL_Delay(250);
+	  			  HAL_Delay(500);
+
 
 	  		  }
 	  		  HAL_GPIO_WritePin(LED_3_GPIO_Port,LED_3_Pin,1);
@@ -156,7 +156,7 @@ int main(void)
 
 	  		  for(uint8_t i = 0; i<6 ; i++){
 	  			  HAL_GPIO_TogglePin(LED_4_GPIO_Port,LED_4_Pin);
-	  			  HAL_Delay(250);
+	  			  HAL_Delay(500);
 
 	  		  }
 	  		  HAL_GPIO_WritePin(LED_4_GPIO_Port,LED_4_Pin,1);
