@@ -151,6 +151,7 @@ int main(void)
 	  		  left_pressed = 0;
 
 
+
 	  	  }
 	  	  if(right_pressed!=0){
 
