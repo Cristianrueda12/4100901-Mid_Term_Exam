@@ -20,9 +20,17 @@
 #include "main.h"
 #define DEBOUNCE_TIME 200
 
+#define DOC_NUMBER "1053871674"
+#define DOC_LENGTH 10
+#define NAME "Cristian"
 
+uint8_t received_bytes_count = 0;
+uint8_t buffer[DOC_LENGTH] = {0};
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+
+#include "ring_buffer.h"
+
 
 /* USER CODE END Includes */
 
@@ -45,12 +53,14 @@
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
-uint8_t left_pressed = 0;
-uint8_t right_pressed = 0;
-uint16_t last_debounce_time_left=0;
-uint16_t counter_left2 = 0;
+uint32_t left_toggles = 0;
+uint32_t right_toggles = 0,hazard_toggles=0;
+uint32_t last_debounce_time_left = 0;
+uint32_t last_debounce_time_right = 0,last_debounce_time_hazard = 0;
+uint32_t counter_right=0, counter_left=0,counter_hazard=0;
+uint8_t data;
+uint8_t daea;
 
-uint16_t counter_left=0;
 
 
 /* USER CODE END PV */
@@ -61,44 +71,54 @@ static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
 /* USER CODE BEGIN PFP */
 
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
+    if(huart->Instance == USART2){
+        if (received_bytes_count < DOC_LENGTH) {
+            // Guardar el byte en el buffer temporal
+            buffer[received_bytes_count] = data;
+            received_bytes_count++;
+        }
+
+        if (received_bytes_count == DOC_LENGTH) {
+            // Revisar si los primeros 8 bytes coinciden con el número de cédula
+            if (memcmp(buffer, DOC_NUMBER, DOC_LENGTH) == 0) {
+                HAL_UART_Transmit(&huart2, (uint8_t*)NAME, strlen(NAME), HAL_MAX_DELAY);
+            }
+            // Reiniciar el conteo para poder procesar un nuevo grupo de datos
+            received_bytes_count = 0;
+        }
+
+        // Reanudar la recepción del siguiente byte
+        HAL_UART_Receive_IT(&huart2, &data, 1);
+    }
+}
+
+
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+
+
+  }
+
+
+  /* NOTE: This function should not be modified, when the callback is needed,
+           the HAL_GPIO_EXTI_Callback could be implemented in the user file
+   */
+
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
-	uint16_t current_time= HAL_GetTick();
 
-	if (GPIO_Pin == B1_Pin) {
-		if (current_time - last_debounce_time_left >= DEBOUNCE_TIME) {
+//Funcionde parpadeo para comprobar el funcionamiento.
+void heartbeat (void){
 
-				    if (current_time - last_debounce_time_left > 1000 && left_pressed < 2) {
-				    	left_pressed = 0;
-
-
-				    }
-
-		        left_pressed ++;
-		        last_debounce_time_left = current_time;
-		        if(left_pressed==1){
-		        	    HAL_UART_Transmit(&huart2, (uint8_t *)"left_active\r\n", 13, 10);
-		        	    counter_left=1;
-		    } else if(left_pressed==2){
-	        	HAL_UART_Transmit(&huart2, (uint8_t *)"left_second_active\r\n",20,10);
-
-
-	        		        	left_pressed =0;
-
-
-		    }
-
-
-		}
-
-	 } else if (GPIO_Pin == B2_Pin) {
-		        right_pressed = 1;
-		        HAL_UART_Transmit(&huart2, (uint8_t *)"right_active\r\n", 14, 10);
-		    }
-
+	static uint32_t heartbeat_tick = 0;
+	if(heartbeat_tick  < HAL_GetTick() ){
+		heartbeat_tick = HAL_GetTick() + 500;
+		HAL_GPIO_TogglePin(D1_GPIO_Port, D1_Pin);
+	}
 }
 /* USER CODE END 0 */
 
@@ -115,7 +135,7 @@ int main(void)
   /* MCU Configuration--------------------------------------------------------*/
 
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-  HAL_Init();
+                                                                                                                                                                                                                                                                                                                                                             HAL_Init();
 
   /* USER CODE BEGIN Init */
 
@@ -137,39 +157,43 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+
+  HAL_UART_Receive_IT(&huart2,&data, 1);
   while (1)
   {
-	  if(left_pressed!=0){
 
-	  		  for(uint8_t i = 0; i<6 ; i++){
-	  			  HAL_GPIO_TogglePin(LED_3_GPIO_Port,LED_3_Pin);
-	  			  HAL_Delay(500);
-
-
-	  		  }
-	  		  HAL_GPIO_WritePin(LED_3_GPIO_Port,LED_3_Pin,1);
-	  		  left_pressed = 0;
+	  uint8_t byte = 0;
+	//  if(ring_buffer_read(&byte)!=0){
+	//	  HAL_UART_Transmit(&huart2,&byte,1,10);
+	//  }
 
 
+    /*  if (ring_buffer_read(&byte) != 0) {
+          // Shift the buffer to the left and add the new byte at the end
+          memmove(buffer, buffer + 1, DOC_LENGTH - 1);
+          buffer[DOC_LENGTH - 1] = byte;
 
-	  	  }
-	  	  if(right_pressed!=0){
-
-	  		  for(uint8_t i = 0; i<6 ; i++){
-	  			  HAL_GPIO_TogglePin(LED_4_GPIO_Port,LED_4_Pin);
-	  			  HAL_Delay(500);
-
-	  		  }
-	  		  HAL_GPIO_WritePin(LED_4_GPIO_Port,LED_4_Pin,1);
-	  		  right_pressed = 0;
-
-
-	  	  }
-	    }
+          // Check if the received sequence matches the document number
+          if (memcmp(buffer, DOC_NUMBER, DOC_LENGTH) == 0) {
+              HAL_UART_Transmit(&huart2, (uint8_t*)NAME, strlen(NAME), HAL_MAX_DELAY);
+          }
+      }*/
 
 
+
+
+
+
+
+	  }
+    /* USER CODE END WHILE */
+
+    /* USER CODE BEGIN 3 */
+
+
+  }
   /* USER CODE END 3 */
-}
+
 
 /**
   * @brief System Clock Configuration
@@ -194,7 +218,13 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.MSIState = RCC_MSI_ON;
   RCC_OscInitStruct.MSICalibrationValue = 0;
   RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_6;
-  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_MSI;
+  RCC_OscInitStruct.PLL.PLLM = 1;
+  RCC_OscInitStruct.PLL.PLLN = 40;
+  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV7;
+  RCC_OscInitStruct.PLL.PLLQ = RCC_PLLQ_DIV2;
+  RCC_OscInitStruct.PLL.PLLR = RCC_PLLR_DIV2;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
     Error_Handler();
@@ -204,12 +234,12 @@ void SystemClock_Config(void)
   */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
-  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_MSI;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_4) != HAL_OK)
   {
     Error_Handler();
   }
@@ -220,7 +250,7 @@ void SystemClock_Config(void)
   * @param None
   * @retval None
   */
- void MX_USART2_UART_Init(void)
+static void MX_USART2_UART_Init(void)
 {
 
   /* USER CODE BEGIN USART2_Init 0 */
@@ -255,7 +285,7 @@ void SystemClock_Config(void)
   * @param None
   * @retval None
   */
-void MX_GPIO_Init(void)
+static void MX_GPIO_Init(void)
 {
   GPIO_InitTypeDef GPIO_InitStruct = {0};
 /* USER CODE BEGIN MX_GPIO_Init_1 */
@@ -266,35 +296,41 @@ void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(LED_1_GPIO_Port, LED_1_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(GPIOA, D1_Pin|D3_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(LED_3_GPIO_Port, LED_3_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(D4_GPIO_Port, D4_Pin, GPIO_PIN_SET);
 
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(LED_4_GPIO_Port, LED_4_Pin, GPIO_PIN_SET);
-
-  /*Configure GPIO pins : B1_Pin B2_Pin */
-  GPIO_InitStruct.Pin = B1_Pin|B2_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  /*Configure GPIO pins : S1_Pin S2_Pin */
+  GPIO_InitStruct.Pin = S1_Pin|S2_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : LED_1_Pin LED_3_Pin */
-  GPIO_InitStruct.Pin = LED_1_Pin|LED_3_Pin;
+  /*Configure GPIO pins : D1_Pin D3_Pin */
+  GPIO_InitStruct.Pin = D1_Pin|D3_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : LED_4_Pin */
-  GPIO_InitStruct.Pin = LED_4_Pin;
+  /*Configure GPIO pin : S3_Pin */
+  GPIO_InitStruct.Pin = S3_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(S3_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : D4_Pin */
+  GPIO_InitStruct.Pin = D4_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(LED_4_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(D4_GPIO_Port, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI0_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI0_IRQn);
+
   HAL_NVIC_SetPriority(EXTI1_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(EXTI1_IRQn);
 
@@ -339,4 +375,4 @@ void assert_failed(uint8_t *file, uint32_t line)
      ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
   /* USER CODE END 6 */
 }
-#endif /* USE_FULL_ASSERT */
+#endif /* USE_FULL_ASSERT */
