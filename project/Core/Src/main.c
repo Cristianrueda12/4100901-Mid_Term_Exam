@@ -59,7 +59,7 @@ uint32_t last_debounce_time_left = 0;
 uint32_t last_debounce_time_right = 0,last_debounce_time_hazard = 0;
 uint32_t counter_right=0, counter_left=0,counter_hazard=0;
 uint8_t data;
-uint8_t daea;
+
 
 
 
